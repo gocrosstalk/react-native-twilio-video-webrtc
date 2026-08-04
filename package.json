@@ -18,7 +18,7 @@
     "lint": "prettier -c 'src/**/*.js'",
     "lint:fix": "prettier -w 'src/**/*.js'",
     "ci": "yarn lint",
-    "prepare": "yarn run build:constants"
+    "prepare": "node ./scripts/generate-constants.js"
   },
   "standard": {
     "parser": "babel-eslint"
