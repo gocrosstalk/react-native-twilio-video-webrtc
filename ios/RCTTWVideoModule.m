@@ -294,25 +294,103 @@ RCT_EXPORT_MODULE();
     }
 }
 
+// Detaches `view` from every subscribed remote video track except `keepTrack`.
+//
+// -[TVIVideoTrack addRenderer:] raises NSInvalidArgumentException when the same
+// renderer is added twice, so every attach has to know what it is already
+// attached to. A single TVIVideoView is re-pointed at different tracks over its
+// lifetime (a dominant-speaker tile is the common case), and without this sweep
+// it stays registered on every track it has ever rendered.
+- (void)sweepRenderer:(TVIVideoView *)view keepingTrack:(TVIVideoTrack *)keepTrack {
+    for (TVIRemoteParticipant *participant in self.room.remoteParticipants) {
+        for (TVIRemoteVideoTrackPublication *publication in participant.remoteVideoTracks) {
+            TVIVideoTrack *track = publication.videoTrack;
+            if (track == nil || track == keepTrack) {
+                continue;
+            }
+            if ([track.renderers containsObject:view]) {
+                [track removeRenderer:view];
+            }
+        }
+    }
+}
+
 - (void)removeParticipantView:(TVIVideoView *)view
                           sid:(NSString *)sid
                      trackSid:(NSString *)trackSid {
-    // TODO: Implement this nicely
+    if (view == nil) {
+        return;
+    }
+
+    TVIRemoteParticipant *participant = [self.room getRemoteParticipantWithSid:sid];
+    for (TVIRemoteVideoTrackPublication *publication in participant.remoteVideoTracks) {
+        if (![publication.trackSid isEqualToString:trackSid]) {
+            continue;
+        }
+        TVIVideoTrack *track = publication.videoTrack;
+        if (track != nil && [track.renderers containsObject:view]) {
+            [track removeRenderer:view];
+        }
+    }
+}
+
+// Detaches `view` from every remote track it is currently rendering.
+//
+// This is what a view calls on teardown. It matters because TVIVideoTrack
+// retains its renderers STRONGLY (verified against the shipped framework's
+// ObjC metadata: TVIVideoTrack._sinkIdToAdapterMap is a strong
+// NSMutableDictionary of TVIVideoRendererAdapter, each of which holds
+// _videoRenderer in a strong ivar slot; neither class has a weak ivar layout).
+// So a renderer that is never removed outlives the view that owned it and keeps
+// consuming decoded frames for the remaining life of the track.
+//
+// Scope, stated precisely because it is easy to overestimate: this reaches only
+// tracks still held by `self.room`, so it is a complete no-op on the normal
+// end-of-call path — room:didDisconnectWithError: nils self.room before the
+// views unmount. That path needs no cleanup anyway, since Twilio tears the
+// tracks down and releases their adapter maps, taking the renderers with them.
+// The detach earns its keep on MID-CALL churn, where the room outlives the view.
+- (void)detachParticipantView:(TVIVideoView *)view {
+    if (view == nil) {
+        return;
+    }
+    [self sweepRenderer:view keepingTrack:nil];
 }
 
 - (void)addParticipantView:(TVIVideoView *)view
                        sid:(NSString *)sid
                   trackSid:(NSString *)trackSid {
+    if (view == nil) {
+        return;
+    }
+
     // Lookup for the participant in the room
     TVIRemoteParticipant *participant =
             [self.room getRemoteParticipantWithSid:sid];
+    TVIVideoTrack *targetTrack = nil;
     if (participant) {
         for (TVIRemoteVideoTrackPublication *publication in participant
                      .remoteVideoTracks) {
             if ([publication.trackSid isEqualToString:trackSid]) {
-                [publication.videoTrack addRenderer:view];
+                targetTrack = publication.videoTrack;
+                break;
             }
         }
+    }
+
+    // Read before sweeping: the answer must come from the target track itself,
+    // not from whether the sweep happened to walk past it.
+    BOOL alreadyAttached = targetTrack != nil && [targetTrack.renderers containsObject:view];
+
+    // Mirrors CustomTwilioVideoView.registerPrimaryVideoView on Android, which
+    // already removes the sink from non-matching tracks as it attaches the
+    // matching one. Sweeping runs even when the target track is missing, so a
+    // view pointed at a track that has gone away is still detached from the
+    // stale one rather than left rendering it.
+    [self sweepRenderer:view keepingTrack:targetTrack];
+
+    if (targetTrack != nil && !alreadyAttached) {
+        [targetTrack addRenderer:view];
     }
 }
 

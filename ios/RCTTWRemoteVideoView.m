@@ -7,6 +7,7 @@
 //
 
 #import "RCTTWRemoteVideoView.h"
+#import "RCTTWVideoModule.h"
 
 @interface RCTTWRemoteVideoView ()
 
@@ -30,6 +31,17 @@
         [self setupVideoView];
     }
     return self;
+}
+
+- (void)dealloc {
+    // TVIVideoTrack retains its renderers strongly, so `_videoView` outlives
+    // this container and keeps consuming decoded frames unless it is detached
+    // here. Reached on unmount under the RN Fabric legacy-interop path:
+    // RCTLegacyViewManagerInteropComponentView.prepareForRecycle drops BOTH
+    // strong references to the paper view — it nils its adapter (whose dealloc
+    // removes the view from its superview) and then nils its own `contentView`,
+    // a strong property, which is the release that actually deallocs us.
+    [_videoModule detachParticipantView:_videoView];
 }
 
 - (void)setupVideoView {

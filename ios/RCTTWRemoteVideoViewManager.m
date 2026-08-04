@@ -59,9 +59,15 @@ RCT_CUSTOM_VIEW_PROPERTY(scalesType, NSInteger, RCTTWRemoteVideoView) {
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(trackIdentifier, RCTTWVideoTrackIdentifier, RCTTWRemoteVideoView) {
+  // Null json (the prop cleared on a still-mounted view) falls through by design: callers
+  // unmount the view instead, and dealloc detaches. If you ever keep a view mounted and null
+  // this prop, detach here explicitly or it keeps rendering — and retaining — the old track.
   if (json) {
     RCTTWVideoModule *videoModule = [self.bridge moduleForName:@"TWVideoModule"];
     RCTTWVideoTrackIdentifier *id = [RCTConvert RCTTWVideoTrackIdentifier:json];
+    // Remembered so the view can detach its renderer on teardown; nothing else
+    // gets a chance to, and an attached renderer is retained by the track.
+    view.videoModule = videoModule;
     [videoModule addParticipantView:view.videoView sid:id.participantSid trackSid:id.videoTrackSid];
   }
 }
