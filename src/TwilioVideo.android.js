@@ -387,6 +387,8 @@ class CustomTwilioVideoView extends Component {
    * @param {Object} [params.encodingParameters={}] - Video encoding parameters
    * @param {boolean} [params.encodingParameters.enableH264Codec=false] - Whether to use H264 codec
    * @param {boolean} [params.encodingParameters.enableSimulcast=false] - Whether to enable VP8 simulcast (ignored when H264 is enabled)
+   * @param {number} [params.encodingParameters.audioBitrate] - Max audio send bitrate in Kbps. Omit to leave audio unconstrained; capping it costs Opus its FEC headroom under packet loss
+   * @param {number} [params.encodingParameters.videoBitrate] - Max video send bitrate in Kbps. Omit to leave video unconstrained (WebRTC default, 2000 Kbps)
    * @param {boolean} [params.enableDataTrack=false] - Whether to enable data track
    * @param {boolean} [params.receiveTranscriptions=false] - Whether to receive transcription events
    * @param {Object} [params.videoFormat=null] - Video capture format { width, height, frameRate }

@@ -1101,16 +1101,44 @@ RCT_EXPORT_METHOD(
                              builder.preferredVideoCodecs = @[vp8Codec];
                          }
 
-                         if (encodingParameters[@"audioBitrate"] ||
-                             encodingParameters[@"videoBitrate"]) {
+                         // A bitrate key that is ABSENT means "do not constrain this
+                         // stream", which TVIEncodingParameters spells as 0 ("Zero
+                         // indicates the WebRTC default value" — TVIEncodingParameters.h).
+                         // That distinction is what allows a video-only ceiling: capping
+                         // audio costs Opus its FEC headroom under packet loss, so a
+                         // caller that supplies only videoBitrate must not have audio
+                         // pinned as a side effect.
+                         //
+                         // When BOTH keys are supplied the original coercion is kept
+                         // verbatim (falsy audio -> 40, falsy video -> 1500) so existing
+                         // callers see no change.
+                         id audioBitrateValue = encodingParameters[@"audioBitrate"];
+                         id videoBitrateValue = encodingParameters[@"videoBitrate"];
+                         BOOL hasAudioBitrate =
+                                 audioBitrateValue != nil &&
+                                 audioBitrateValue != (id)[NSNull null];
+                         BOOL hasVideoBitrate =
+                                 videoBitrateValue != nil &&
+                                 videoBitrateValue != (id)[NSNull null];
+
+                         if (hasAudioBitrate || hasVideoBitrate) {
+                             // Read a value only when its key was actually supplied.
+                             // NSNull does not respond to -integerValue, so reading the
+                             // absent side unconditionally would raise on `{videoBitrate:
+                             // 800, audioBitrate: null}` — a shape JS produces readily.
                              NSInteger audioBitrate =
-                                     [encodingParameters[@"audioBitrate"] integerValue];
+                                     hasAudioBitrate ? [audioBitrateValue integerValue] : 0;
                              NSInteger videoBitrate =
-                                     [encodingParameters[@"videoBitrate"] integerValue];
+                                     hasVideoBitrate ? [videoBitrateValue integerValue] : 0;
+                             if (hasAudioBitrate && hasVideoBitrate) {
+                                 audioBitrate = audioBitrate ? audioBitrate : 40;
+                                 videoBitrate = videoBitrate ? videoBitrate : 1500;
+                             }
+                             // The initialiser takes NSUInteger, so a negative would wrap
+                             // to an astronomically large ceiling rather than erroring.
                              builder.encodingParameters = [[TVIEncodingParameters alloc]
-                                     initWithAudioBitrate:(audioBitrate) ? audioBitrate : 40
-                                             videoBitrate:(videoBitrate) ? videoBitrate
-                                                                         : 1500];
+                                     initWithAudioBitrate:MAX(audioBitrate, (NSInteger)0)
+                                             videoBitrate:MAX(videoBitrate, (NSInteger)0)];
                          }
 
                          if (enableNetworkQualityReporting) {

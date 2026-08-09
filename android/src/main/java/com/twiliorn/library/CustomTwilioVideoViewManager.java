@@ -117,6 +117,16 @@ public class CustomTwilioVideoViewManager extends SimpleViewManager<CustomTwilio
                 ReadableMap encodingParameters = args.getMap(10);
                 boolean enableH264Codec = encodingParameters.hasKey("enableH264Codec") ? encodingParameters.getBoolean("enableH264Codec") : false;
                 boolean enableSimulcast = encodingParameters.hasKey("enableSimulcast") ? encodingParameters.getBoolean("enableSimulcast") : false;
+                // An absent bitrate key means "do not constrain this stream". Twilio
+                // spells that as 0 ("Zero indicates the WebRTC default value" —
+                // EncodingParameters javadoc), so an unset key and an explicit 0 are the
+                // same thing to the SDK. Keeping them distinct here is what lets a caller
+                // cap video WITHOUT pinning audio, which would cost Opus its FEC headroom
+                // under packet loss.
+                int audioBitrate = encodingParameters.hasKey("audioBitrate") && !encodingParameters.isNull("audioBitrate")
+                        ? Math.max(0, encodingParameters.getInt("audioBitrate")) : 0;
+                int videoBitrate = encodingParameters.hasKey("videoBitrate") && !encodingParameters.isNull("videoBitrate")
+                        ? Math.max(0, encodingParameters.getInt("videoBitrate")) : 0;
                 boolean enableDataTrack = args.getBoolean(11);
                 boolean receiveTranscriptions = args.getBoolean(12);
 
@@ -160,7 +170,9 @@ public class CustomTwilioVideoViewManager extends SimpleViewManager<CustomTwilio
                         receiveTranscriptions,
                         videoWidth,
                         videoHeight,
-                        videoFrameRate);
+                        videoFrameRate,
+                        audioBitrate,
+                        videoBitrate);
                 break;
             case DISCONNECT:
                 view.disconnect();

@@ -94,6 +94,7 @@ import com.twilio.video.BaseTrackStats;
 import com.twilio.video.CameraCapturer;
 import com.twilio.video.ConnectOptions;
 import com.twilio.video.DataTrackOptions;
+import com.twilio.video.EncodingParameters;
 import com.twilio.video.H264Codec;
 import com.twilio.video.LocalAudioTrack;
 import com.twilio.video.LocalAudioTrackPublication;
@@ -180,6 +181,12 @@ public class CustomTwilioVideoView extends View
     private int requestedVideoWidth = 0;
     private int requestedVideoHeight = 0;
     private int requestedVideoFrameRate = 0;
+
+    // User-specified send-bitrate ceilings in Kbps (0 means the WebRTC default, i.e.
+    // unconstrained — see the EncodingParameters javadoc). The two are independent so a
+    // caller can cap video without pinning audio, which would cost Opus its FEC headroom.
+    private int maxAudioBitrate = 0;
+    private int maxVideoBitrate = 0;
 
     @Retention(RetentionPolicy.SOURCE)
     @StringDef({Events.ON_CAMERA_SWITCHED,
@@ -701,7 +708,9 @@ public class CustomTwilioVideoView extends View
             boolean receiveTranscriptions,
             int videoWidth,
             int videoHeight,
-            int videoFrameRate) {
+            int videoFrameRate,
+            int maxAudioBitrate,
+            int maxVideoBitrate) {
         this.roomName = roomName;
         this.accessToken = accessToken;
         this.enableRemoteAudio = enableRemoteAudio;
@@ -716,6 +725,8 @@ public class CustomTwilioVideoView extends View
         this.requestedVideoWidth = videoWidth;
         this.requestedVideoHeight = videoHeight;
         this.requestedVideoFrameRate = videoFrameRate;
+        this.maxAudioBitrate = maxAudioBitrate;
+        this.maxVideoBitrate = maxVideoBitrate;
         this.region = region;
 
         // Share your microphone
@@ -824,6 +835,14 @@ public class CustomTwilioVideoView extends View
         connectOptionsBuilder.preferVideoCodecs(Collections.singletonList(videoCodec));
 
         connectOptionsBuilder.enableDominantSpeaker(this.dominantSpeakerEnabled);
+
+        // Only set encoding parameters when at least one ceiling was asked for. Passing
+        // EncodingParameters(0, 0) would be equivalent, but leaving the builder untouched
+        // keeps the no-ceiling path byte-identical to its previous behaviour.
+        if (this.maxAudioBitrate > 0 || this.maxVideoBitrate > 0) {
+            connectOptionsBuilder.encodingParameters(
+                    new EncodingParameters(this.maxAudioBitrate, this.maxVideoBitrate));
+        }
 
         if (enableNetworkQualityReporting) {
             connectOptionsBuilder.enableNetworkQuality(true);

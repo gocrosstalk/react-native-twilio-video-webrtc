@@ -261,8 +261,13 @@ declare module "@twilio/video-react-native-sdk" {
             enableH264Codec?: boolean;
             /** Enable VP8 simulcast. Simulcast publishes multiple video streams at different resolutions. Only works with VP8 codec (ignored when enableH264Codec is true). */
             enableSimulcast?: boolean;
-            // if audioBitrate OR videoBitrate is provided, you must provide both
+            /**
+             * Maximum audio send bitrate in **Kbps**. Omit to leave audio unconstrained
+             * (the WebRTC default). Capping audio costs Opus its FEC headroom under
+             * packet loss, so supply this only when you specifically want that trade.
+             */
             audioBitrate?: number;
+            /** Maximum video send bitrate in **Kbps**. Omit to leave video unconstrained (the WebRTC default, 2000 Kbps). */
             videoBitrate?: number;
         };
         enableNetworkQualityReporting?: boolean;
@@ -286,6 +291,14 @@ declare module "@twilio/video-react-native-sdk" {
             enableH264Codec?: boolean;
             /** Enable VP8 simulcast. Simulcast publishes multiple video streams at different resolutions. Only works with VP8 codec (ignored when enableH264Codec is true). */
             enableSimulcast?: boolean;
+            /**
+             * Maximum audio send bitrate in **Kbps**. Omit to leave audio unconstrained
+             * (the WebRTC default). Capping audio costs Opus its FEC headroom under
+             * packet loss, so supply this only when you specifically want that trade.
+             */
+            audioBitrate?: number;
+            /** Maximum video send bitrate in **Kbps**. Omit to leave video unconstrained (the WebRTC default, 2000 Kbps). */
+            videoBitrate?: number;
         };
         enableNetworkQualityReporting?: boolean;
         maintainVideoTrackInBackground?: boolean;
